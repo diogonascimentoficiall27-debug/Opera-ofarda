@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Operação Farda — Gerador de Questões PDF</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+<header class="header">
+  <img src="/static/logos/logo_of.png" alt="Operação Farda" class="header-logo">
+  <div><div class="header-title">OPERAÇÃO <span>FARDA</span></div></div>
+  <div class="header-tabs">
+    <button class="header-tab ativo" onclick="mostrarSecao('gerador')">⚡ Gerador</button>
+    <button class="header-tab" onclick="mostrarSecao('agenda')">📅 Agenda</button>
+  </div>
+  <span class="header-badge">GERADOR PDF</span>
+</header>
+
+<!-- ══════════════════════════════════════════
+     SEÇÃO: GERADOR
+══════════════════════════════════════════ -->
+<div id="secao-gerador" class="container">
+
+  <!-- PAINEL ESQUERDO -->
+  <aside class="painel-config">
+
+    <!-- PERFIS RÁPIDOS -->
+    <div class="card">
+      <div class="card-header">⚡ Perfis Rápidos</div>
+      <div class="card-body" style="gap:8px;">
+        <div class="perfis-grid" id="perfis-grid">
+          {% for p in perfis %}
+          <div class="perfil-item" onclick="carregarPerfil('{{ p.id }}')"
+               data-id="{{ p.id }}" data-concurso="{{ p.concurso }}"
+               data-banca="{{ p.banca }}" data-brasao="{{ p.brasao }}"
+               style="border-color: {{ p.cor }}20;">
+            <span class="perfil-icone">{{ p.icone }}</span>
+            <span class="perfil-nome">{{ p.nome }}</span>
+            <div class="perfil-btns">
+              <button class="perfil-edit" onclick="event.stopPropagation(); editarPerfil('{{ p.id }}')" title="Editar">✏️</button>
+              <button class="perfil-del" onclick="event.stopPropagation(); deletarPerfil('{{ p.id }}')" title="Remover">✕</button>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        <button class="btn-secundario" onclick="toggleNovoPerfil()">+ Novo perfil</button>
+        <div id="form-novo-perfil" class="form-novo-perfil">
+          <input type="text" id="perfil-nome" placeholder="Nome (ex: PMBA Soldado)">
+          <input type="text" id="perfil-concurso" placeholder="Concurso (ex: PMBA Soldado 2026)">
+          <select id="perfil-banca">
+            {% for b in bancas %}<option value="{{ b }}">{{ b }}</option>{% endfor %}
+          </select>
+          <select id="perfil-brasao">
+            <option value="">— Brasão atual selecionado —</option>
+            {% for b in brasoes %}<option value="{{ b.arquivo }}">{{ b.nome }}</option>{% endfor %}
+          </select>
+          <p style="font-size:0.78rem;color:#888;margin:0 0 4px;">Deixe em "Brasão atual" para salvar o brasão que está selecionado agora.</p>
+          <button class="btn-gerar" style="padding:9px;font-size:0.82rem;" onclick="salvarNovoPerfil()">
+            <span class="btn-text">Salvar Perfil</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- CONFIGURAÇÃO -->
+    <div class="card">
+      <div class="card-header">⚙ Configuração do Concurso</div>
+      <div class="card-body">
+        <div>
+          <label>Nome do Concurso</label>
+          <input type="text" id="concurso" placeholder="Ex: PMBA Soldado 2026" value="PMBA Soldado 2026">
+        </div>
+        <div>
+          <label>Banca Examinadora</label>
+          <select id="banca">
+            {% for b in bancas %}<option value="{{ b }}" {% if b == 'FCC' %}selected{% endif %}>{{ b }}</option>{% endfor %}
+          </select>
+        </div>
+        <div>
+          <label>Destino do Material</label>
+          <div class="destino-grid" id="destino-grid">
+            {% for key, d in destinos.items() %}
+            <div class="destino-item {% if key == 'pdf' %}ativo{% endif %}"
+                 data-destino="{{ key }}" onclick="selecionarDestino(this, '{{ key }}')"
+                 style="--destino-cor: {{ d.cor }}">
+              <span class="destino-label">{{ d.label }}</span>
+              <span class="destino-desc">{{ d.descricao }}</span>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- BRASÃO -->
+    <div class="card">
+      <div class="card-header">🛡 Brasão da Corporação</div>
+      <div class="card-body">
+        <div class="brasao-grid" id="brasao-grid">
+          {% for b in brasoes %}
+          <div class="brasao-item" data-arquivo="{{ b.arquivo }}"
+               onclick="selecionarBrasao(this, '{{ b.arquivo }}')">
+            <img src="/static/logos/brasoes/{{ b.arquivo }}" alt="{{ b.nome }}">
+            <span>{{ b.nome }}</span>
+          </div>
+          {% endfor %}
+        </div>
+        <div id="upload-zone" class="upload-zone">
+          <p>Arraste ou <strong>clique</strong> para enviar novo brasão</p>
+          <input type="file" id="upload-input" accept=".png,.jpg,.jpeg">
+        </div>
+        <div id="upload-nome-pm" class="upload-nome-pm">
+          <div>
+            <label>Nome da PM</label>
+            <input type="text" id="nome-pm-input" placeholder="Ex: PM-SP">
+          </div>
+          <button class="btn-gerar" style="padding:10px;font-size:0.85rem;" onclick="enviarBrasao()">
+            <span class="btn-text">Salvar Brasão</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODO -->
+    <div class="card">
+      <div class="card-header">📝 Modo de Entrada</div>
+      <div class="card-body">
+        <div class="modo-tabs">
+          <button class="modo-tab ativo" data-modo="manual">✏ Manual</button>
+          <button class="modo-tab" data-modo="texto">📋 Texto</button>
+          <button class="modo-tab" data-modo="ia">🤖 IA</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- PREVIEW ANTES DE GERAR -->
+    <div class="card" id="card-preview">
+      <div class="card-header">👁 Preview</div>
+      <div class="card-body">
+        <div class="preview-config" id="preview-config">
+          <div class="preview-linha">
+            <span class="preview-key">Concurso</span>
+            <span class="preview-val" id="pv-concurso">—</span>
+          </div>
+          <div class="preview-linha">
+            <span class="preview-key">Banca</span>
+            <span class="preview-val" id="pv-banca">—</span>
+          </div>
+          <div class="preview-linha">
+            <span class="preview-key">Disciplinas</span>
+            <span class="preview-val" id="pv-disciplinas">—</span>
+          </div>
+          <div class="preview-linha">
+            <span class="preview-key">Destino</span>
+            <span class="preview-val" id="pv-destino">—</span>
+          </div>
+          <div class="preview-linha">
+            <span class="preview-key">Questões</span>
+            <span class="preview-val" id="pv-questoes">—</span>
+          </div>
+          <div class="preview-brasao-wrap">
+            <img id="pv-brasao" src="" style="display:none; height:40px; margin:8px auto; display:block;">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- AGENDAMENTO -->
+    <div class="card">
+      <div class="card-header">📅 Agendar este PDF</div>
+      <div class="card-body">
+        <div class="agendar-toggle-wrap">
+          <label class="toggle-label">
+            <input type="checkbox" id="chk-embaralhar">
+            🔀 Embaralhar questões e alternativas
+          </label>
+        </div>
+          <label class="toggle-label">
+            <input type="checkbox" id="chk-agendar" onchange="toggleAgendar()">
+            <span class="toggle-slider"></span>
+            Salvar na agenda ao gerar
+          </label>
+        </div>
+        <div id="form-agendar" class="form-agendar">
+          <div>
+            <label>Nome do agendamento</label>
+            <input type="text" id="nome-agenda" placeholder="Ex: PMAL – Português – Segunda">
+          </div>
+          <div>
+            <label>Data</label>
+            <input type="date" id="data-agenda">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- BOTÃO GERAR -->
+    <button class="btn-gerar" id="btn-gerar">
+      <div class="spinner"></div>
+      <span class="btn-text">⚡ GERAR PDF</span>
+    </button>
+
+  </aside>
+
+  <!-- PAINEL DIREITO -->
+  <main class="painel-questoes">
+
+    <!-- MODO MANUAL -->
+    <div id="modo-manual" class="modo-manual">
+      <div class="card">
+        <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+          <span>📋 Questões — Modo Manual (até 20)</span>
+          <span id="contador-questoes" style="font-size:0.78rem;font-weight:normal;color:#666;">0/20 questões preenchidas</span>
+        </div>
+      </div>
+      <div class="questoes-grid" id="questoes-grid"></div>
+    </div>
+
+    <!-- MODO TEXTO CORRIDO -->
+    <div id="modo-texto" class="modo-texto">
+      <div class="card">
+        <div class="card-header">📋 Questões — Texto Corrido</div>
+        <div class="card-body">
+          <div class="formato-hint">
+            <strong>📌 Formato esperado:</strong>
+            Use <code>[DISCIPLINA: Nome]</code> para separar disciplinas e <code>[TEXTO BASE]</code> para adicionar texto de apoio antes das questões.<br><br>
+            <code>[DISCIPLINA: Língua Portuguesa]</code><br>
+            <code>[TEXTO BASE: Instrução para as questões de 1 a 5]</code><br>
+            <code>Leia o trecho abaixo e responda às questões...</code><br>
+            <code>[/TEXTO BASE]</code><br>
+            <code>1. Enunciado...</code><br>
+            <code>(A) Alternativa A</code> ... <code>(E) Alternativa E</code>
+          </div>
+          <div>
+            <label>Cole as questões aqui</label>
+            <textarea id="texto-corrido" rows="20" placeholder="[DISCIPLINA: Língua Portuguesa]&#10;&#10;[TEXTO BASE: Atenção: Para responder às questões de 1 a 3, leia o texto abaixo.]&#10;Texto base aqui...&#10;[/TEXTO BASE]&#10;&#10;1. Enunciado...&#10;(A) ..."></textarea>
+          </div>
+          <div id="preview-parse" class="preview-parse"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODO IA -->
+    <div id="modo-ia" class="modo-ia">
+      <div class="card">
+        <div class="card-header">🤖 Gerar Questões com Inteligência Artificial</div>
+        <div class="card-body">
+          <div class="api-key-box">
+            <label>🤖 Provedor de IA</label>
+            <select id="ia-provedor" onchange="atualizarProvedorIA()">
+              <option value="anthropic">Anthropic (Claude)</option>
+              <option value="openai">OpenAI (ChatGPT)</option>
+              <option value="gemini">Google Gemini</option>
+              <option value="openrouter">OpenRouter (multi-modelo)</option>
+            </select>
+            <label style="margin-top:10px;">🔑 API Key</label>
+            <div class="api-key-input-wrap">
+              <input type="password" id="api-key" placeholder="sk-ant-api03-..." autocomplete="off">
+              <button class="btn-eye" onclick="toggleApiKey()" title="Mostrar/ocultar">👁</button>
+            </div>
+            <p class="api-hint" id="api-hint-texto">Obtenha em <strong>console.anthropic.com</strong> → API Keys.</p>
+            <div id="openrouter-model-wrap" style="display:none;margin-top:8px;">
+              <label>Modelo OpenRouter</label>
+              <input type="text" id="openrouter-model" placeholder="Ex: mistralai/mistral-7b-instruct" value="mistralai/mistral-7b-instruct">
+            </div>
+          </div>
+          <hr class="divider">
+          <div>
+            <label>Disciplina</label>
+            <select id="ia-disciplina">
+              <option value="">— Selecione —</option>
+              {% for d in disciplinas %}<option value="{{ d }}">{{ d }}</option>{% endfor %}
+            </select>
+          </div>
+          <div>
+            <label>Tópico específico <span style="color:#666">(opcional)</span></label>
+            <input type="text" id="ia-topico" placeholder="Ex: Concordância verbal, Art. 5º CF...">
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div>
+              <label>Quantidade</label>
+              <select id="ia-quantidade">
+                <option value="5">5 questões</option>
+                <option value="10" selected>10 questões</option>
+                <option value="15">15 questões</option>
+                <option value="20">20 questões</option>
+              </select>
+            </div>
+            <div>
+              <label>Dificuldade</label>
+              <select id="ia-dificuldade">
+                <option value="facil">Fácil</option>
+                <option value="medio" selected>Médio</option>
+                <option value="dificil">Difícil</option>
+              </select>
+            </div>
+          </div>
+          <button class="btn-ia" id="btn-ia" onclick="gerarComIA()">
+            <div class="spinner-ia"></div>
+            <span class="btn-ia-text">⚡ Gerar Questões com IA</span>
+          </button>
+          <div id="ia-resultado" class="ia-resultado"></div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- ══════════════════════════════════════════
+     SEÇÃO: AGENDA
+══════════════════════════════════════════ -->
+<div id="secao-agenda" class="secao-agenda" style="display:none;">
+  <div class="agenda-container">
+
+    <!-- DASHBOARD -->
+    <div class="card">
+      <div class="card-header">📊 Dashboard — Histórico de PDFs</div>
+      <div class="card-body" id="dashboard-stats">
+        <p style="color:#666;font-size:0.85rem;text-align:center;">Carregando...</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">📅 PDFs Agendados — Pendentes</div>
+      <div class="card-body agenda-pendentes" id="agenda-pendentes">
+        {% if agenda.pendentes %}
+          {% for item in agenda.pendentes %}
+          <div class="agenda-item" id="ag-{{ item.id }}">
+            <div class="agenda-info">
+              <span class="agenda-nome">{{ item.nome }}</span>
+              <span class="agenda-meta">{{ item.concurso }} · {{ item.disciplina }} · {{ item.data }}</span>
+              <span class="agenda-destino">{{ item.destino }}</span>
+            </div>
+            <div class="agenda-acoes">
+              <a href="/agenda/{{ item.id }}/download" class="btn-download">⬇ Baixar</a>
+              <button onclick="deletarAgenda('{{ item.id }}')" class="btn-del-agenda">✕</button>
+            </div>
+          </div>
+          {% endfor %}
+        {% else %}
+          <p class="agenda-vazia">Nenhum PDF agendado ainda. Gere um PDF com a opção "Agendar" ativada.</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">✅ Já Baixados</div>
+      <div class="card-body agenda-baixados" id="agenda-baixados">
+        {% if agenda.baixados %}
+          {% for item in agenda.baixados %}
+          <div class="agenda-item baixado">
+            <div class="agenda-info">
+              <span class="agenda-nome">{{ item.nome }}</span>
+              <span class="agenda-meta">{{ item.concurso }} · Baixado em {{ item.baixado_em }}</span>
+            </div>
+            <button onclick="deletarAgenda('{{ item.id }}')" class="btn-del-agenda">✕</button>
+          </div>
+          {% endfor %}
+        {% else %}
+          <p class="agenda-vazia">Nenhum PDF baixado ainda.</p>
+        {% endif %}
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast" class="toast">
+  <span class="toast-icon"></span>
+  <span class="toast-msg"></span>
+</div>
+
+<script>
+  window.DISCIPLINAS = {{ disciplinas | tojson }};
+  window.PERFIS      = {{ perfis | tojson }};
+  window.BRASOES     = {{ brasoes | tojson }};
+</script>
+<script src="/static/js/main.js"></script>
+</body>
+</html>

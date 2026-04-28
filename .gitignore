@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+*.egg-info/
+dist/
+build/
+
+# Ambiente
+.env
+*.env.local
+
+# PDFs gerados localmente
+pdfs_agendados/
+
+# Dados locais (substituídos pelo Supabase em produção)
+data/agenda.json
+data/perfis.json
+
+# Imagens processadas (geradas automaticamente)
+static/logos/brasoes/*_clean.png
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
